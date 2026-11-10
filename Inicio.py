@@ -1,91 +1,180 @@
+import os
 import streamlit as st
 import numpy as np
 import tensorflow as tf
 from tensorflow import keras
 from PIL import Image
 from streamlit_drawable_canvas import st_canvas
-import os
+import pandas as pd
 
+# Configuración de la página con temática educativa e infantil
 st.set_page_config(
-    page_title="Detector de Dígitos MNIST",
-    page_icon="✍️",
+    page_title="¡Escuelita de Números Mágicos! 🎒✨",
+    page_icon="🖍️",
     layout="wide"
 )
 
-# Mostrar versión en sidebar
+# --- ESTILOS CSS: PIZARRA ESCOLAR Y ESTÉTICA INFANTIL ---
+st.markdown("""
+    <style>
+    /* Importar tipografía infantil y redondeada */
+    @import url('https://fonts.googleapis.com/css2?family=Fredoka:wght@400;600;700&display=swap');
+
+    /* Aplicar fuente a toda la aplicación */
+    html, body, [class*="css"], p, span, label {
+        font-family: 'Fredoka', cursive, sans-serif !important;
+    }
+
+    /* Fondo general alegre y colorido */
+    .stApp {
+        background: linear-gradient(135deg, #e0f2fe 0%, #fef3c7 50%, #fce7f3 100%);
+    }
+
+    /* Barra lateral estilo casillero escolar */
+    [data-testid="stSidebar"] {
+        background-color: #fef08a;
+        border-right: 4px dashed #f59e0b;
+    }
+
+    /* Títulos divertidos con relieve colorido */
+    h1 {
+        color: #d97706 !important;
+        text-shadow: 2px 2px 0px #fde68a;
+        text-align: center;
+        font-weight: 700;
+    }
+    
+    h2, h3 {
+        color: #0284c7 !important;
+    }
+
+    /* Tarjetas de pizarra escolar para los resultados */
+    .pizarra-card {
+        background-color: #1e293b;
+        border: 6px solid #b45309;
+        border-radius: 20px;
+        padding: 20px;
+        text-align: center;
+        color: #ffffff;
+        box-shadow: 0 8px 16px rgba(0,0,0,0.2);
+    }
+
+    /* Botones grandes y coloridos estilo juguete */
+    .stButton > button {
+        background-color: #10b981 !important;
+        color: white !important;
+        border-radius: 25px !important;
+        border: 4px solid #059669 !important;
+        font-size: 1.2rem !important;
+        font-weight: 700 !important;
+        box-shadow: 0px 4px 0px #047857;
+        transition: all 0.1s ease;
+    }
+    
+    .stButton > button:hover {
+        background-color: #34d399 !important;
+    }
+
+    .stButton > button:active {
+        transform: translateY(4px);
+        box-shadow: 0px 0px 0px #047857;
+    }
+    </style>
+""", unsafe_allow_html=True)
+
+# Sidebar con información amigable
 with st.sidebar:
-    st.write(f"**TensorFlow:** {tf.__version__}")
-    st.write(f"**Keras:** {keras.__version__}")
+    st.image("https://images.unsplash.com/photo-1503676260728-1c00da094a0b?w=300&auto=format&fit=crop&q=60", caption="¡Aprende jugando!")
+    st.subheader("🎒 ¡Hola, Pequeño Artista!")
+    st.write("1. Elige un número para practicar o dibuja libremente.")
+    st.write("2. Usa el lápiz mágico para escribir el número en la pizarra.")
+    st.write("3. ¡Presiona el botón para ver qué dice el Duende IA!")
+    st.markdown("---")
+    with st.expander("⚙️ Información para profes y papás"):
+        st.write(f"**TensorFlow:** {tf.__version__}")
+        st.write(f"**Keras:** {keras.__version__}")
 
-st.title("✍️ Detección de Dígitos Escritos a Mano")
-st.markdown("**Modelo CNN entrenado en Google Colab con MNIST**")
+st.title("🎒 ¡La Escuelita de los Números Mágicos! 🪄✨")
+st.markdown("<p style='text-align: center; font-size: 1.3rem; color: #475569;'>¡Dibuja un número en la pizarra y descubre si la Inteligencia Artificial lo reconoce!</p>", unsafe_allow_html=True)
 
-# Cargar modelo
+# Cargar modelo con mensajes amigables
 @st.cache_resource
 def load_mnist_model():
-    """Carga el modelo MNIST desde archivo .keras"""
-    
-    # Buscar archivo del modelo
     model_files = ['mnist_model.keras', 'mnist_model.h5']
-    
     for model_path in model_files:
         if os.path.exists(model_path):
             try:
-                st.info(f"📂 Intentando cargar: {model_path}")
                 model = keras.models.load_model(model_path)
-                st.success(f"✅ Modelo cargado exitosamente desde: `{model_path}`")
                 return model
             except Exception as e:
-                st.error(f"❌ Error al cargar {model_path}: {str(e)}")
                 continue
-    
-    # Si no se encuentra el modelo
-    st.error("❌ No se encontró ningún modelo")
-    st.info("""
-    **Instrucciones:**
-    1. Entrena el modelo en Google Colab
-    2. Descarga `mnist_model.keras`
-    3. Súbelo a la raíz de tu repositorio
-    4. Reinicia la aplicación
-    """)
-    st.stop()
+    return None
 
-# Cargar modelo
 model = load_mnist_model()
 
-# Interfaz
-st.write("### 🎨 Dibuja un dígito del 0 al 9")
+if model is None:
+    st.error("🏫 ¡Uy! El maestro robot olvidó cargar su libro de números.")
+    st.info("Sube el archivo `mnist_model.keras` a la raíz de tu proyecto para comenzar la clase.")
+    st.stop()
 
-col1, col2 = st.columns([2, 1])
+# Selector de reto o modo libre
+modo = st.radio(
+    "🎯 ¿Cómo quieres jugar hoy?", 
+    ["🎨 Modo Libre (Dibuja el número que quieras)", "🏆 ¡Reto del Número Mágico!"],
+    horizontal=True
+)
 
-with col1:
+target_digit = None
+if "Reto" in modo:
+    if 'reto_actual' not in st.session_state:
+        st.session_state.reto_actual = np.random.randint(0, 10)
+    
+    col_reto1, col_reto2 = st.columns([3, 1])
+    with col_reto1:
+        st.markdown(f"### 🌟 ¡Reto del día: Dibuja el número **{st.session_state.reto_actual}**! 🌟")
+    with col_reto2:
+        if st.button("🔄 Cambiar reto"):
+            st.session_state.reto_actual = np.random.randint(0, 10)
+            st.rerun()
+    target_digit = st.session_state.reto_actual
+
+# Interfaz principal de dibujo (Pizarra escolar oscura con tiza blanca)
+col_canvas, col_panel = st.columns([1.2, 1], gap="large")
+
+with col_canvas:
+    st.markdown("#### 🖍️ Tu Pizarra Mágica")
+    # Pizarra escolar con fondo negro/oscuro y trazo blanco/tiza
     canvas_result = st_canvas(
         fill_color="black",
-        stroke_width=20,
+        stroke_width=25,
         stroke_color="white",
-        background_color="black",
-        width=400,
-        height=400,
+        background_color="#0f172a",
+        width=350,
+        height=350,
         drawing_mode="freedraw",
-        key="canvas",
+        key="canvas_pizarra",
     )
 
-with col2:
-    st.write("### 🎮 Controles")
-    predict_btn = st.button("🔍 **Predecir**", type="primary", use_container_width=True)
-    clear_btn = st.button("🗑️ Limpiar", use_container_width=True)
+with col_panel:
+    st.markdown("#### 🕹️ ¡Panel de Control!")
+    st.write("Cuando termines tu dibujo, presiona el botón verde para calificar tu obra maestra.")
     
-    if clear_btn:
-        st.rerun()
+    col_b1, col_b2 = st.columns(2)
+    with col_b1:
+        predict_btn = st.button("✨ ¡Adivinar!", use_container_width=True)
+    with col_b2:
+        clear_btn = st.button("🧹 Borrar", use_container_width=True)
+        if clear_btn:
+            st.rerun()
 
-# Predicción
+# Lógica de predicción y feedback
 if predict_btn:
     if canvas_result.image_data is not None:
         if np.max(canvas_result.image_data) == 0:
-            st.warning("⚠️ Por favor, dibuja un dígito primero")
+            st.warning("⚠️ ¡La pizarra está vacía! Dibuja un número primero.")
         else:
-            with st.spinner("🤔 Analizando..."):
-                # Procesar imagen
+            with st.spinner("🔮 El duende inteligente está mirando tu dibujo..."):
+                # Procesar imagen para el modelo MNIST
                 image = Image.fromarray(
                     canvas_result.image_data.astype("uint8")
                 ).convert("L")
@@ -94,48 +183,43 @@ if predict_btn:
                 img_array = np.array(image_resized) / 255.0
                 img_array = img_array.reshape(1, 28, 28, 1)
                 
-                # Predicción
+                # Predicción del modelo
                 prediction = model.predict(img_array, verbose=0)
                 digit = np.argmax(prediction)
                 confidence = np.max(prediction) * 100
-            
-            # Resultados
-            st.success(f"## 🎯 Dígito detectado: **{digit}**")
-            
-            col_m1, col_m2, col_m3 = st.columns(3)
-            with col_m1:
-                st.metric("Predicción", digit)
-            with col_m2:
-                st.metric("Confianza", f"{confidence:.1f}%")
-            with col_m3:
-                alternative = np.argsort(prediction[0])[-2]
-                st.metric("2ª opción", alternative)
-            
-            # Mostrar imágenes
-            st.write("### 🖼️ Procesamiento")
-            col_img1, col_img2 = st.columns(2)
-            
-            with col_img1:
-                st.write("**Tu dibujo original:**")
-                st.image(canvas_result.image_data, width=200)
-            
-            with col_img2:
-                st.write("**Imagen procesada (28x28):**")
-                st.image(image_resized, width=200)
-            
-            # Gráfico de probabilidades
-            st.write("### 📊 Probabilidades por dígito")
-            import pandas as pd
-            prob_df = pd.DataFrame({
-                'Dígito': [str(i) for i in range(10)],
-                'Probabilidad (%)': prediction[0] * 100
-            })
-            st.bar_chart(prob_df.set_index('Dígito'))
-            
-            with st.expander("🔍 Ver detalles"):
-                for i, prob in enumerate(prediction[0]):
-                    emoji = "🎯" if i == digit else ""
-                    st.write(f"{emoji} **Dígito {i}**: {prob*100:.2f}%")
-    else:
-        st.warning("⚠️ Por favor, dibuja un dígito en el canvas")
 
+            # Mostrar resultados con estilo muy animado
+            st.markdown("---")
+            
+            if target_digit is not None:
+                if digit == target_digit:
+                    st.balloons()
+                    st.success(f"🎉 ¡WOOOOW! ¡Dibujaste exactamente el número **{target_digit}**! ¡Eres un genio total! ⭐⭐⭐")
+                else:
+                    st.warning(f"🤔 ¡Casi lo logras! El duende cree que dibujaste un **{digit}**, pero estábamos buscando el **{target_digit}**. ¡Inténtalo otra vez! 💪")
+            else:
+                if confidence > 70:
+                    st.success(f"🌟 ¡Increíble! El duende mágico dice que tu número es el **{digit}** (¡Seguridad del {confidence:.0f}%!)")
+                    if confidence > 90:
+                        st.balloons()
+                else:
+                    st.info(f"🧐 Mmm... El duende cree que es un **{digit}**, pero no está muy seguro ({confidence:.0f}%). ¿Puedes hacerlo más grande o clarito?")
+
+            # Métricas y detalles divertidos
+            m1, m2 = st.columns(2)
+            with m1:
+                st.metric("Número detectado", str(digit))
+            with m2:
+                st.metric("Seguridad del Duende", f"{confidence:.1f}%")
+
+            # Miniaturas del dibujo procesado
+            with st.expander("🔍 ¿Cómo ve el duende tu dibujo?"):
+                sub_c1, sub_c2 = st.columns(2)
+                with sub_c1:
+                    st.write("**Tu dibujo:**")
+                    st.image(canvas_result.image_data, width=150)
+                with sub_c2:
+                    st.write("**Vista del Duende (28x28):**")
+                    st.image(image_resized, width=150)
+    else:
+        st.warning("⚠️ ¡Dibuja algo en la pizarra primero!")
